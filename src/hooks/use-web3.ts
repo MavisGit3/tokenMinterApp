@@ -178,14 +178,11 @@
 
 //   useEffect(() => {
 //     if (typeof window !== "undefined" && window.ethereum) {
-//       const handleAccountsChanged = (..._args: unknown[]) => {
-//         const accounts = _args[0] as string[]
-//         if (accounts.length === 0 || accounts[0] !== userAccount) {
-//           window.location.reload()
-//         }
+//       const handleAccountsChanged = () => {
+//         window.location.reload()
 //       }
 
-//       const handleChainChanged = (..._args: unknown[]) => {
+//       const handleChainChanged = () => {
 //         window.location.reload()
 //       }
 
@@ -202,21 +199,20 @@
 //   }, [userAccount])
 
 //   const disconnect = () => {
-//   setWeb3(null)
-//   setContract(null)
-//   setUserAccount(null)
-//   setIsConnected(false)
-//   setContractData(null)
-//   setIsOwner(false)
-//   setIsAdmin(false)
-//   setIsMinter(false)
+//     setWeb3(null)
+//     setContract(null)
+//     setUserAccount(null)
+//     setIsConnected(false)
+//     setContractData(null)
+//     setIsOwner(false)
+//     setIsAdmin(false)
+//     setIsMinter(false)
 
-//   //clear cached provider (avoids auto-reconnect)
-//   if (typeof window !== "undefined") {
-//     localStorage.removeItem("walletConnected")
+//     // Clear cached provider (avoids auto-reconnect)
+//     if (typeof window !== "undefined") {
+//       localStorage.removeItem("walletConnected")
+//     }
 //   }
-// }
-
 
 //   return {
 //     web3,
@@ -232,7 +228,6 @@
 //     loadContractData,
 //   }
 // }
-
 
 
 
@@ -312,7 +307,7 @@ export interface Web3Context {
   contractData: ContractData | null
   isConnected: boolean
   connectWallet: () => Promise<void>
-  disconnect: () => void  
+  disconnect: () => void
   loadContractData: () => Promise<void>
 }
 
@@ -327,34 +322,45 @@ export function useWeb3(): Web3Context {
   const [isConnected, setIsConnected] = useState(false)
 
   const connectWallet = useCallback(async () => {
-    if (typeof window === "undefined" || !window.ethereum) {
+    if (typeof window === "undefined") {
+      throw new Error("Window is not defined")
+    }
+
+    if (!window.ethereum) {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      if (isMobile) {
+        // Redirect to MetaMask app
+        window.open(`https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`, "_blank")
+        return
+      }
       throw new Error("MetaMask not detected! Please install MetaMask extension.")
     }
 
     try {
-      const accounts = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[]
-      const web3Instance = new Web3(window.ethereum)
+      const accounts = (await window.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[]
 
-      if (accounts.length === 0) {
+      if (!accounts || accounts.length === 0) {
         throw new Error("No accounts found. Please unlock MetaMask.")
       }
 
-      const account = accounts[0]
+      const web3Instance = new Web3(window.ethereum)
       const code = await web3Instance.eth.getCode(CONTRACT_ADDRESS)
+
       if (code === "0x" || code === "0x0") {
-        throw new Error(`Contract not found at ${CONTRACT_ADDRESS}. Please check the address or switch networks.`)
+        throw new Error(`Contract not found at ${CONTRACT_ADDRESS}. Please check address or switch network.`)
       }
 
       const contractInstance = new web3Instance.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS) as ERC20Contract
-      await contractInstance.methods.name().call()
 
       setWeb3(web3Instance)
       setContract(contractInstance)
-      setUserAccount(account)
+      setUserAccount(accounts[0])
       setIsConnected(true)
-    } catch (error) {
-      console.error("Connection error:", error)
-      throw error
+    } catch (err) {
+      console.error("Connection error:", err)
+      throw err
     }
   }, [])
 
@@ -375,8 +381,8 @@ export function useWeb3(): Web3Context {
       const decimalPlaces = Number.parseInt(decimals as string)
       const divisor = Math.pow(10, decimalPlaces)
 
-      const formattedBalance = (Number.parseFloat(balance as string) / divisor).toFixed(3)
-      const formattedTotalSupply = (Number.parseFloat(totalSupply as string) / divisor).toFixed(3)
+      const formattedBalance = (Number(balance) / divisor).toFixed(3)
+      const formattedTotalSupply = (Number(totalSupply) / divisor).toFixed(3)
 
       const ownerCheck = (owner as string).toLowerCase() === userAccount.toLowerCase()
       setIsOwner(ownerCheck)
@@ -403,8 +409,7 @@ export function useWeb3(): Web3Context {
       window.ethereum
         .request({ method: "eth_accounts" })
         .then((accounts) => {
-          const accountsArray = accounts as string[]
-          if (accountsArray.length > 0) {
+          if ((accounts as string[]).length > 0) {
             connectWallet().catch(console.error)
           }
         })
@@ -420,25 +425,18 @@ export function useWeb3(): Web3Context {
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.ethereum) {
-      const handleAccountsChanged = () => {
-        window.location.reload()
-      }
-
-      const handleChainChanged = () => {
-        window.location.reload()
-      }
+      const handleAccountsChanged = () => window.location.reload()
+      const handleChainChanged = () => window.location.reload()
 
       window.ethereum.on("accountsChanged", handleAccountsChanged)
       window.ethereum.on("chainChanged", handleChainChanged)
 
       return () => {
-        if (window.ethereum) {
-          window.ethereum.removeListener("accountsChanged", handleAccountsChanged)
-          window.ethereum.removeListener("chainChanged", handleChainChanged)
-        }
+        window.ethereum?.removeListener("accountsChanged", handleAccountsChanged)
+        window.ethereum?.removeListener("chainChanged", handleChainChanged)
       }
     }
-  }, [userAccount])
+  }, [])
 
   const disconnect = () => {
     setWeb3(null)
@@ -450,7 +448,6 @@ export function useWeb3(): Web3Context {
     setIsAdmin(false)
     setIsMinter(false)
 
-    // Clear cached provider (avoids auto-reconnect)
     if (typeof window !== "undefined") {
       localStorage.removeItem("walletConnected")
     }
@@ -470,3 +467,7 @@ export function useWeb3(): Web3Context {
     loadContractData,
   }
 }
+
+
+
+
