@@ -1,6 +1,5 @@
 export const CONTRACT_ADDRESS = "0x9995CD435e9c6c7d1089D649b9647E0bdB0FA446"
 
-// Contract ABI for the new simpler ERC-20 contract
 export const CONTRACT_ABI = [
   {
     inputs: [
